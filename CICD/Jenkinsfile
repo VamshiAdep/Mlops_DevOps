@@ -14,12 +14,6 @@ pipeline {
             }
         }
 
-        stage('Install Python Deps (Optional)') {
-            steps {
-                sh 'python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt'
-            }
-        }
-
         stage('Build Docker Image') {
             steps {
                 echo "Building Docker image: ${IMAGE_NAME}:${TAG}"
@@ -32,7 +26,6 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh """
                         echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                        docker tag ${IMAGE_NAME}:${TAG} ${IMAGE_NAME}:${TAG}
                         docker push ${IMAGE_NAME}:${TAG}
                     """
                 }
@@ -44,14 +37,9 @@ pipeline {
                 echo 'Deploying to Minikube Kubernetes Cluster...'
 
                 sh """
-                    # Replace image tag in deployment
                     sed -i 's|image: .*|image: ${IMAGE_NAME}:${TAG}|' k8s/deployment.yaml
-
-                    # Apply deployment and service
                     kubectl apply -f k8s/deployment.yaml
                     kubectl apply -f k8s/service.yaml
-
-                    # Wait for pods to be ready
                     kubectl rollout status deployment/mlops-infer-deployment
                 """
             }
@@ -59,7 +47,10 @@ pipeline {
 
         stage('Access App') {
             steps {
-                echo "App should be available at: http://${NODE_IP}:30004"
+                script {
+                    def nodeIP = sh(script: "minikube ip", returnStdout: true).trim()
+                    echo "App should be available at: http://${nodeIP}:30004"
+                }
             }
         }
     }
