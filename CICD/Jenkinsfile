@@ -1,0 +1,29 @@
+piplelie 
+{
+    agent any
+    
+    stages {
+        stage('Build') {
+        steps {
+            script {
+            sh 'docker build -t vamshiadep21/mlops-infer:latest .'
+            }
+        }
+        }
+    
+        stage('Deploy to Kubernetes') {
+        steps {
+            script {
+            sh 'kubectl apply -f k8s/deployment.yaml'
+            }
+        }
+        }
+    }
+    
+    post {
+        always {
+        echo 'Cleaning up...'
+        sh 'docker rmi vamshiadep21/mlops-infer:latest || true'
+        }
+    }
+}
