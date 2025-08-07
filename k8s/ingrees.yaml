@@ -6,7 +6,7 @@ metadata:
     nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
   rules:
-    - host: mlops.local  # Use your local DNS (e.g., edit /etc/hosts)
+    - host: mlops.local  
       http:
         paths:
           - path: /
