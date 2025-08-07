@@ -2,56 +2,45 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = 'vamshiadep21/mlops-infer'
-        TAG = "${env.BUILD_NUMBER}"
+        DOCKER_IMAGE = 'vamshiadep21/mlops-inference-service:latest'
     }
 
     stages {
-        stage('Clone Repo') {
+        stage('Clone') {
             steps {
-                echo 'Cloning the repository...'
-                checkout scm
+                git 'https://github.com/VamshiAdep/Mlops_DevOps.git'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                echo "Building Docker image: ${IMAGE_NAME}:${TAG}"
-                sh "docker build -t ${IMAGE_NAME}:${TAG} ."
-            }
-        }
-
-        stage('Push Docker Image') {
-            steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    sh """
-                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                        docker push ${IMAGE_NAME}:${TAG}
-                    """
+                script {
+                    sh 'docker build -t $DOCKER_IMAGE .'
                 }
             }
         }
 
-        stage('Deploy to Kubernetes') {
+        stage('Docker Login') {
             steps {
-                echo 'Deploying to Minikube Kubernetes Cluster...'
-
-                sh """
-                    sed -i 's|image: .*|image: ${IMAGE_NAME}:${TAG}|' k8s/deployment.yaml
-                    kubectl apply -f k8s/deployment.yaml
-                    kubectl apply -f k8s/service.yaml
-                    kubectl rollout status deployment/mlops-infer-deployment
-                """
+                withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
+                }
             }
         }
 
-        stage('Access App') {
+        stage('Push to Docker Hub') {
             steps {
                 script {
-                    def nodeIP = sh(script: "minikube ip", returnStdout: true).trim()
-                    echo "App should be available at: http://${nodeIP}:30004"
+                    sh 'docker push $DOCKER_IMAGE'
                 }
             }
+        }
+    }
+
+    post {
+        always {
+            echo "Cleaning up dangling images"
+            sh "docker image prune -f"
         }
     }
 }
